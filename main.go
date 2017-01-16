@@ -54,6 +54,11 @@ func main() {
 			Value: "gin-bin",
 			Usage: "name of generated binary file",
 		},
+		cli.StringSliceFlag{
+			Name:  "ext,e",
+			Usage: "Use ext to specify the file extensions to listen to.",
+			Value: &cli.StringSlice{".go"},
+		},
 		cli.StringFlag{
 			Name:  "path,t",
 			Value: ".",
@@ -157,7 +162,7 @@ func MainAction(c *cli.Context) {
 	build(builder, runner, logger)
 
 	// scan for changes
-	scanChanges(c.GlobalString("path"), c.GlobalStringSlice("excludeDir"), func(path string) {
+	scanChanges(c.GlobalString("path"), c.GlobalStringSlice("ext"),  c.GlobalStringSlice("excludeDir"), func(path string) {
 		runner.Kill()
 		build(builder, runner, logger)
 	})
@@ -198,7 +203,16 @@ func build(builder gin.Builder, runner gin.Runner, logger *log.Logger) {
 
 type scanCallback func(path string)
 
-func scanChanges(watchPath string, excludeDirs []string, cb scanCallback) {
+func in(str string, arr []string) bool{
+	for _, v := range arr {
+		if v == str {
+			return true
+		}
+	}
+	return false
+}
+
+func scanChanges(watchPath string, extensions []string, excludeDirs []string, cb scanCallback) {
 	for {
 		filepath.Walk(watchPath, func(path string, info os.FileInfo, err error) error {
 			if path == ".git" {
@@ -215,7 +229,7 @@ func scanChanges(watchPath string, excludeDirs []string, cb scanCallback) {
 				return nil
 			}
 
-			if filepath.Ext(path) == ".go" && info.ModTime().After(startTime) {
+			if in(filepath.Ext(path), extensions) && info.ModTime().After(startTime) {
 				cb(path)
 				startTime = time.Now()
 				return errors.New("done")
